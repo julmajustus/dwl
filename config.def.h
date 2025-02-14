@@ -41,6 +41,14 @@ static const Rule rules[] = {
 	{ "firefox_EXAMPLE",  NULL,       1 << 8,       0,           -1 }, /* Start on ONLY tag "9" */
 };
 
+/* tearing */
+static int tearing_allowed = 1;
+static const ForceTearingRule force_tearing[] = {
+	{.title = "", .appid = "hl_linux"},
+	{.title = "Warcraft III", .appid = ""},
+	{.title = "", .appid = "gamescope"},
+};
+
 /* layout(s) */
 static const Layout layouts[] = {
 	/* symbol     arrange function */
