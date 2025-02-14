@@ -1942,13 +1942,11 @@ focusstack(const Arg *arg)
 void focusdir(const Arg *arg)
 {
 	/* Focus the left, right, up, down client relative to the current focused client on selmon */
-  Client *c, *sel = focustop(selmon);
+  Client *c, *newsel = NULL, *sel = focustop(selmon);
+  int dist = INT_MAX, newdist = INT_MAX;
 	if (!sel || sel->isfullscreen)
 		return;
 
-  int dist=INT_MAX;
-  Client *newsel = NULL;
-  int newdist=INT_MAX;
   wl_list_for_each(c, &clients, link) {
     if (!VISIBLEON(c, selmon))
       continue; /* skip non visible windows */
@@ -3748,7 +3746,7 @@ updatetitle(struct wl_listener *listener, void *data)
 	if (c->foreign_toplevel) {
 		const char *title;
 		if (!(title = client_get_title(c)))
-			title = broken;
+			title = "broken";
 		wlr_foreign_toplevel_handle_v1_set_title(c->foreign_toplevel, title);
 	}
 	if (c == focustop(c->mon))
