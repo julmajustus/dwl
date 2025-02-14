@@ -1,3 +1,25 @@
+# My patched dwl developement version based on dwl upstream main
+
+### Patches applied to my dwl
+  - [btrtile](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/btrtile/btrtile-v0.7-gaps.patch)
+  - [ipc](https://codeberg.org/dwl/dwl-patches/src/branch/main/patches/ipc/ipc.patch)
+  - [ipcpertag](https://codeberg.org/dwl/dwl-patches/src/branch/main/patches/ipc/ipcpertag.patch)
+  - [monitorconfig](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/monitorconfig/monitorconfig.patch)
+  - [numlock-capslock](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/numlock-capslock/numlock-capslock-0.7.patch)
+  - [pertag](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/pertag/pertag.patch)
+  - [rotatetags](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/rotatetags/rotatetags.patch)
+  - [simple_scratchpad](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/simple_scratchpad/simple_scratchpad-v0.7.patch)
+  - [tearing](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/tearing/tearing.patch)
+  - [xwayland-handle-minimize](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/xwayland-handle-minimize/xwayland-handle-minimize.patch)
+  - [warpcursor](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/warpcursor/warpcursor.patch)
+  - [gaps](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/gaps/gaps.patch)
+  - [fullscreenadaptivesync](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/fullscreenadaptivesync/fullscreenadaptivesync-v0.7.patch)
+  - [foreign-toplevel-management](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/foreign-toplevel-management/foreign-toplevel-management.patch)
+  - [alwayscenter](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/alwayscenter/alwayscenter.patch)
+  - [globalkey](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/globalkey/globalkey.patch)
+  - [focusdir](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/focusdir/focusdir.patch)
+  - []()
+
 # dwl - dwm for Wayland
 
 Join us on our IRC channel: [#dwl on Libera Chat]  
