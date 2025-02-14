@@ -139,6 +139,7 @@ typedef struct {
 	uint32_t tags;
 	int isfloating, isurgent, isfullscreen;
 	uint32_t resize; /* configure serial of a pending resize */
+	struct wl_list link_temp;
 } Client;
 
 typedef struct {
@@ -240,6 +241,7 @@ typedef struct {
 } SessionLock;
 
 /* function declarations */
+static void addscratchpad(const Arg *arg);
 static void applybounds(Client *c, struct wlr_box *bbox);
 static void applyrules(Client *c);
 static void arrange(Monitor *m);
@@ -314,6 +316,7 @@ static void printstatus(void);
 static void powermgrsetmode(struct wl_listener *listener, void *data);
 static void quit(const Arg *arg);
 static void rendermon(struct wl_listener *listener, void *data);
+static void removescratchpad(const Arg *arg);
 static void requestdecorationmode(struct wl_listener *listener, void *data);
 static void requeststartdrag(struct wl_listener *listener, void *data);
 static void requestmonstate(struct wl_listener *listener, void *data);
@@ -336,6 +339,7 @@ static void tagmon(const Arg *arg);
 static void tile(Monitor *m);
 static void togglefloating(const Arg *arg);
 static void togglefullscreen(const Arg *arg);
+static void togglescratchpad(const Arg *arg);
 static void toggletag(const Arg *arg);
 static void toggleview(const Arg *arg);
 static void unlocksession(struct wl_listener *listener, void *data);
@@ -406,6 +410,9 @@ static struct wlr_box sgeom;
 static struct wl_list mons;
 static Monitor *selmon;
 
+static struct wl_list scratchpad_clients;
+static int scratchpad_visible = 1;
+
 /* global event handlers */
 static struct wl_listener cursor_axis = {.notify = axisnotify};
 static struct wl_listener cursor_button = {.notify = buttonpress};
@@ -454,6 +461,8 @@ static struct wlr_xwayland *xwayland;
 
 /* attempt to encapsulate suck into one file */
 #include "client.h"
+
+#include "simple_scratchpad.c"
 
 /* function implementations */
 void
@@ -1322,10 +1331,20 @@ void
 destroynotify(struct wl_listener *listener, void *data)
 {
 	/* Called when the xdg_toplevel is destroyed. */
-	Client *c = wl_container_of(listener, c, destroy);
+	Client *sc, *c = wl_container_of(listener, c, destroy);
 	wl_list_remove(&c->destroy.link);
 	wl_list_remove(&c->set_title.link);
 	wl_list_remove(&c->fullscreen.link);
+	/* Check if destroyed client was part of scratchpad_clients
+	 * and clean it from the list if so. */
+	if (c && wl_list_length(&scratchpad_clients) > 0) {
+		wl_list_for_each(sc, &scratchpad_clients, link_temp) {
+			if (sc == c) {
+				wl_list_remove(&c->link_temp);
+				break;
+			}
+		}
+	}
 #ifdef XWAYLAND
 	if (c->type != XDGShell) {
 		wl_list_remove(&c->activate.link);
@@ -2325,11 +2344,21 @@ setcursorshape(struct wl_listener *listener, void *data)
 void
 setfloating(Client *c, int floating)
 {
-	Client *p = client_get_parent(c);
+	Client *sc, *p = client_get_parent(c);
 	c->isfloating = floating;
 	/* If in floating layout do not change the client's layer */
 	if (!c->mon || !client_surface(c)->mapped || !c->mon->lt[c->mon->sellt]->arrange)
 		return;
+	/* Check if unfloated client was part of scratchpad_clients
+	 * and remove it from scratchpad_clients list if so */
+	if (!floating && wl_list_length(&scratchpad_clients) > 0) {
+		wl_list_for_each(sc, &scratchpad_clients, link_temp) {
+			if (sc == c) {
+				wl_list_remove(&c->link_temp);
+				break;
+			}
+		}
+	}
 	wlr_scene_node_reparent(&c->scene->node, layers[c->isfullscreen ||
 			(p && p->isfullscreen) ? LyrFS
 			: c->isfloating ? LyrFloat : LyrTile]);
@@ -2546,6 +2575,7 @@ setup(void)
 	 */
 	wl_list_init(&clients);
 	wl_list_init(&fstack);
+	wl_list_init(&scratchpad_clients);
 
 	xdg_shell = wlr_xdg_shell_create(dpy, 6);
 	wl_signal_add(&xdg_shell->events.new_toplevel, &new_xdg_toplevel);
