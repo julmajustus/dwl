@@ -1,0 +1,99 @@
+From 024d66e3c81d5acb35b5be51f4812fe84614530b Mon Sep 17 00:00:00 2001
+From: wochap <gean.marroquin@gmail.com>
+Date: Fri, 5 Jul 2024 11:07:06 -0500
+Subject: [PATCH] implement xkb-rules-switcher
+
+---
+ config.def.h | 17 +++++++++++------
+ dwl.c        | 19 ++++++++++++++++++-
+ 2 files changed, 29 insertions(+), 7 deletions(-)
+
+diff --git a/config.def.h b/config.def.h
+index 22d2171..ab73cf0 100644
+--- a/config.def.h
++++ b/config.def.h
+@@ -52,12 +52,16 @@ static const MonitorRule monrules[] = {
+ };
+ 
+ /* keyboard */
+-static const struct xkb_rule_names xkb_rules = {
+-	/* can specify fields: rules, model, layout, variant, options */
+-	/* example:
+-	.options = "ctrl:nocaps",
+-	*/
+-	.options = NULL,
++static const struct xkb_rule_names xkb_rules[] = {
++	{
++		/* can specify fields: rules, model, layout, variant, options */
++		.layout = "us",
++		.options = NULL,
++	},
++	{
++		.layout = "us",
++		.options = "compose:ralt",
++	},
+ };
+ 
+ static const int repeat_rate = 25;
+@@ -148,6 +152,7 @@ static const Key keys[] = {
+ 	{ MODKEY,                    XKB_KEY_period,     focusmon,       {.i = WLR_DIRECTION_RIGHT} },
+ 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_less,       tagmon,         {.i = WLR_DIRECTION_LEFT} },
+ 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_greater,    tagmon,         {.i = WLR_DIRECTION_RIGHT} },
++	{ MODKEY,                    XKB_KEY_w,          switchxkbrule,  {0} },
+ 	TAGKEYS(          XKB_KEY_1, XKB_KEY_exclam,                     0),
+ 	TAGKEYS(          XKB_KEY_2, XKB_KEY_at,                         1),
+ 	TAGKEYS(          XKB_KEY_3, XKB_KEY_numbersign,                 2),
+diff --git a/dwl.c b/dwl.c
+index dc0437e..ecbdf9a 100644
+--- a/dwl.c
++++ b/dwl.c
+@@ -331,6 +331,7 @@ static void setsel(struct wl_listener *listener, void *data);
+ static void setup(void);
+ static void spawn(const Arg *arg);
+ static void startdrag(struct wl_listener *listener, void *data);
++static void switchxkbrule(const Arg *arg);
+ static void tag(const Arg *arg);
+ static void tagmon(const Arg *arg);
+ static void tile(Monitor *m);
+@@ -400,6 +401,7 @@ static struct wl_listener lock_listener = {.notify = locksession};
+ static struct wlr_seat *seat;
+ static KeyboardGroup *kb_group;
+ static unsigned int cursor_mode;
++static unsigned int xkb_rule_index = 0;
+ static Client *grabc;
+ static int grabcx, grabcy; /* client-relative */
+ 
+@@ -838,7 +840,7 @@ createkeyboardgroup(void)
+ 
+ 	/* Prepare an XKB keymap and assign it to the keyboard group. */
+ 	context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
+-	if (!(keymap = xkb_keymap_new_from_names(context, &xkb_rules,
++	if (!(keymap = xkb_keymap_new_from_names(context, &xkb_rules[xkb_rule_index],
+ 				XKB_KEYMAP_COMPILE_NO_FLAGS)))
+ 		die("failed to compile keymap");
+ 
+@@ -2614,6 +2616,21 @@ startdrag(struct wl_listener *listener, void *data)
+ 	LISTEN_STATIC(&drag->icon->events.destroy, destroydragicon);
+ }
+ 
++void
++switchxkbrule(const Arg *arg)
++{
++	struct xkb_context *context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
++	struct xkb_keymap *keymap;
++
++	xkb_rule_index = (xkb_rule_index + 1) % LENGTH(xkb_rules);
++	if (!(keymap = xkb_keymap_new_from_names(context, &xkb_rules[xkb_rule_index],
++			XKB_KEYMAP_COMPILE_NO_FLAGS)))
++		die("failed to compile keymap");
++	wlr_keyboard_set_keymap(&kb_group->wlr_group->keyboard, keymap);
++	xkb_keymap_unref(keymap);
++	xkb_context_unref(context);
++}
++
+ void
+ tag(const Arg *arg)
+ {
+-- 
+2.45.1
+

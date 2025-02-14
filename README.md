@@ -18,7 +18,7 @@
   - [alwayscenter](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/alwayscenter/alwayscenter.patch)
   - [globalkey](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/globalkey/globalkey.patch)
   - [focusdir](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/focusdir/focusdir.patch)
-  - []()
+  - [xkb-rules-switcher](https://codeberg.org/wochap/dwl/raw/branch/v0.6-b/xkb-rules-switcher/xkb-rules-switcher.patch)
 
 # dwl - dwm for Wayland
 
