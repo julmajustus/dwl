@@ -15,6 +15,7 @@
 #include <wayland-server-core.h>
 #include <wlr/backend.h>
 #include <wlr/backend/libinput.h>
+#include <wlr/interfaces/wlr_keyboard.h>
 #include <wlr/render/allocator.h>
 #include <wlr/render/wlr_renderer.h>
 #include <wlr/types/wlr_alpha_modifier_v1.h>
@@ -412,6 +413,7 @@ static void ffullscreennotify(struct wl_listener *listener, void *data);
 /* variables */
 static pid_t child_pid = -1;
 static int locked;
+static uint32_t locked_mods = 0;
 static void *exclusive_focus;
 static struct wl_display *dpy;
 static struct wl_event_loop *event_loop;
@@ -1036,6 +1038,8 @@ createkeyboard(struct wlr_keyboard *keyboard)
 	/* Set the keymap to match the group keymap */
 	wlr_keyboard_set_keymap(keyboard, kb_group->wlr_group->keyboard.keymap);
 
+	wlr_keyboard_notify_modifiers(keyboard, 0, 0, locked_mods, 0);
+
 	/* Add the new keyboard to the group */
 	wlr_keyboard_group_add_keyboard(kb_group->wlr_group, keyboard);
 }
@@ -1057,6 +1061,21 @@ createkeyboardgroup(void)
 		die("failed to compile keymap");
 
 	wlr_keyboard_set_keymap(&group->wlr_group->keyboard, keymap);
+	if (numlock) {
+		xkb_mod_index_t mod_index = xkb_keymap_mod_get_index(keymap, XKB_MOD_NAME_NUM);
+		if (mod_index != XKB_MOD_INVALID)
+			locked_mods |= (uint32_t)1 << mod_index;
+	}
+
+	if (capslock) {
+		xkb_mod_index_t mod_index = xkb_keymap_mod_get_index(keymap, XKB_MOD_NAME_CAPS);
+		if (mod_index != XKB_MOD_INVALID)
+			locked_mods |= (uint32_t)1 << mod_index;
+	}
+
+	if (locked_mods)
+		wlr_keyboard_notify_modifiers(&group->wlr_group->keyboard, 0, 0, locked_mods, 0);
+
 	xkb_keymap_unref(keymap);
 	xkb_context_unref(context);
 
