@@ -411,6 +411,7 @@ static void setratio_v(const Arg *arg);
 static void swapclients(const Arg *arg);
 static void spawn(const Arg *arg);
 static void startdrag(struct wl_listener *listener, void *data);
+static void switchxkbrule(const Arg *arg);
 static void tag(const Arg *arg);
 static void tagmon(const Arg *arg);
 static void tile(Monitor *m);
@@ -495,6 +496,7 @@ struct wl_list tearing_controllers;
 static struct wlr_seat *seat;
 static KeyboardGroup *kb_group;
 static unsigned int cursor_mode;
+static unsigned int xkb_rule_index = 0;
 static Client *grabc;
 static int grabcx, grabcy; /* client-relative */
 
@@ -1107,7 +1109,7 @@ createkeyboardgroup(void)
 
 	/* Prepare an XKB keymap and assign it to the keyboard group. */
 	context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
-	if (!(keymap = xkb_keymap_new_from_names(context, &xkb_rules,
+	if (!(keymap = xkb_keymap_new_from_names(context, &xkb_rules[xkb_rule_index],
 				XKB_KEYMAP_COMPILE_NO_FLAGS)))
 		die("failed to compile keymap");
 
@@ -3410,6 +3412,21 @@ startdrag(struct wl_listener *listener, void *data)
 
 	drag->icon->data = &wlr_scene_drag_icon_create(drag_icon, drag->icon)->node;
 	LISTEN_STATIC(&drag->icon->events.destroy, destroydragicon);
+}
+
+void
+switchxkbrule(const Arg *arg)
+{
+	struct xkb_context *context = xkb_context_new(XKB_CONTEXT_NO_FLAGS);
+	struct xkb_keymap *keymap;
+
+	xkb_rule_index = (xkb_rule_index + 1) % LENGTH(xkb_rules);
+	if (!(keymap = xkb_keymap_new_from_names(context, &xkb_rules[xkb_rule_index],
+			XKB_KEYMAP_COMPILE_NO_FLAGS)))
+		die("failed to compile keymap");
+	wlr_keyboard_set_keymap(&kb_group->wlr_group->keyboard, keymap);
+	xkb_keymap_unref(keymap);
+	xkb_context_unref(context);
 }
 
 void

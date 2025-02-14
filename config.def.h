@@ -77,12 +77,16 @@ static const MonitorRule monrules[] = {
 };
 
 /* keyboard */
-static const struct xkb_rule_names xkb_rules = {
-	/* can specify fields: rules, model, layout, variant, options */
-	/* example:
-	.options = "ctrl:nocaps",
-	*/
-	.options = NULL,
+static const struct xkb_rule_names xkb_rules[] = {
+	{
+		/* can specify fields: rules, model, layout, variant, options */
+		.layout = "us",
+		.options = NULL,
+	},
+	{
+		.layout = "us",
+		.options = "compose:ralt",
+	},
 };
 
 /* numlock and capslock */
@@ -207,6 +211,7 @@ static const Key keys[] = {
 	{ MODKEY|WLR_MODIFIER_CTRL,  XKB_KEY_Left,       setratio_h,     {.f = -0.025f} },
 	{ MODKEY|WLR_MODIFIER_CTRL,  XKB_KEY_Up,         setratio_v,     {.f = -0.025f} },
 	{ MODKEY|WLR_MODIFIER_CTRL,  XKB_KEY_Down,       setratio_v,     {.f = +0.025f} },
+	{ MODKEY,                    XKB_KEY_w,          switchxkbrule,  {0} },
 	TAGKEYS(          XKB_KEY_1, XKB_KEY_exclam,                     0),
 	TAGKEYS(          XKB_KEY_2, XKB_KEY_at,                         1),
 	TAGKEYS(          XKB_KEY_3, XKB_KEY_numbersign,                 2),
