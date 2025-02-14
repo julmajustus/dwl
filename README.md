@@ -1,24 +1,25 @@
 # My patched dwl developement version based on dwl upstream main
 
 ### Patches applied to my dwl
-  - [btrtile](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/btrtile/btrtile-v0.7-gaps.patch)
-  - [ipc](https://codeberg.org/dwl/dwl-patches/src/branch/main/patches/ipc/ipc.patch)
-  - [ipcpertag](https://codeberg.org/dwl/dwl-patches/src/branch/main/patches/ipc/ipcpertag.patch)
-  - [monitorconfig](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/monitorconfig/monitorconfig.patch)
-  - [numlock-capslock](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/numlock-capslock/numlock-capslock-0.7.patch)
-  - [pertag](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/pertag/pertag.patch)
-  - [rotatetags](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/rotatetags/rotatetags.patch)
-  - [simple_scratchpad](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/simple_scratchpad/simple_scratchpad-v0.7.patch)
-  - [tearing](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/tearing/tearing.patch)
-  - [xwayland-handle-minimize](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/xwayland-handle-minimize/xwayland-handle-minimize.patch)
-  - [warpcursor](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/warpcursor/warpcursor.patch)
-  - [gaps](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/gaps/gaps.patch)
-  - [fullscreenadaptivesync](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/fullscreenadaptivesync/fullscreenadaptivesync-v0.7.patch)
-  - [foreign-toplevel-management](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/foreign-toplevel-management/foreign-toplevel-management.patch)
-  - [alwayscenter](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/alwayscenter/alwayscenter.patch)
-  - [globalkey](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/globalkey/globalkey.patch)
-  - [focusdir](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/focusdir/focusdir.patch)
-  - [xkb-rules-switcher](https://codeberg.org/wochap/dwl/raw/branch/v0.6-b/xkb-rules-switcher/xkb-rules-switcher.patch)
+- [alwayscenter](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/alwayscenter/alwayscenter.patch)
+- [btrtile](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/btrtile/btrtile-v0.7-gaps.patch)
+- [focusdir](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/focusdir/focusdir.patch)
+- [foreign-toplevel-management](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/foreign-toplevel-management/foreign-toplevel-management.patch)
+- [fullscreenadaptivesync](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/fullscreenadaptivesync/fullscreenadaptivesync-v0.7.patch)
+- [gaps](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/gaps/gaps.patch)
+- [globalkey](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/globalkey/globalkey.patch)
+- [ipc](https://codeberg.org/dwl/dwl-patches/src/branch/main/patches/ipc/ipc.patch)
+- [ipcpertag](https://codeberg.org/dwl/dwl-patches/src/branch/main/patches/ipc/ipcpertag.patch)
+- [monitorconfig](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/monitorconfig/monitorconfig.patch)
+- [numlock-capslock](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/numlock-capslock/numlock-capslock-0.7.patch)
+- [pertag](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/pertag/pertag.patch)
+- [rotatetags](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/rotatetags/rotatetags.patch)
+- [simple_scratchpad](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/simple_scratchpad/simple_scratchpad-v0.7.patch)
+- [tearing](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/tearing/tearing.patch)
+- [warpcursor](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/warpcursor/warpcursor.patch)
+- [xkb-rules-switcher](https://codeberg.org/wochap/dwl/raw/branch/v0.6-b/xkb-rules-switcher/xkb-rules-switcher.patch)
+- [xwayland-handle-minimize](https://codeberg.org/dwl/dwl-patches/raw/branch/main/patches/xwayland-handle-minimize/xwayland-handle-minimize.patch)
+
 
 # dwl - dwm for Wayland
 
