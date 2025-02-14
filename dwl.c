@@ -411,6 +411,7 @@ static void factivatenotify(struct wl_listener *listener, void *data);
 static void fclosenotify(struct wl_listener *listener, void *data);
 static void fdestroynotify(struct wl_listener *listener, void *data);
 static void ffullscreennotify(struct wl_listener *listener, void *data);
+static void rotatetags(const Arg *arg);
 
 /* variables */
 static pid_t child_pid = -1;
@@ -3737,6 +3738,34 @@ fdestroynotify(struct wl_listener *listener, void *data)
 	wl_list_remove(&c->fclose.link);
 	wl_list_remove(&c->ffullscreen.link);
 	wl_list_remove(&c->fdestroy.link);
+}
+
+static void
+rotatetags(const Arg *arg)
+{
+	Arg newarg;
+	int i = arg->i;
+	int nextseltags = 0, curseltags = selmon->tagset[selmon->seltags];
+	bool shift = false;
+
+	switch(abs(i)) {
+		default: break;
+		case SHIFT_R:
+			shift = true;
+			break;
+	};
+
+	if (i > 0)
+		nextseltags = (curseltags << 1) | (curseltags >> (TAGCOUNT - 1));
+	else
+		nextseltags = (curseltags >> 1) | (curseltags << (TAGCOUNT - 1));
+
+	newarg.i = nextseltags;
+
+	if (shift)
+		tag(&newarg);
+	else
+		view(&newarg);
 }
 
 #ifdef XWAYLAND
