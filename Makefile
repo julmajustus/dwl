@@ -13,7 +13,8 @@ DWLDEVCFLAGS = -g -Wpedantic -Wall -Wextra -Wdeclaration-after-statement \
 
 # CFLAGS / LDFLAGS
 
-CFLAGS ?= -march=native -O3 -flto -funroll-loops -fomit-frame-pointer
+#override CFLAGS := -march=native -O3 -fomit-frame-pointer
+override CFLAGS := -march=native -O3 -flto -funroll-loops -fomit-frame-pointer
 
 PKGS      = wayland-server xkbcommon libinput $(XLIBS)
 # Debug
