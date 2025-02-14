@@ -1,0 +1,507 @@
+From dc63d64cd69f515013464b3feb8acb411f5a348f Mon Sep 17 00:00:00 2001
+From: wochap <gean.marroquin@gmail.com>
+Date: Thu, 2 May 2024 17:25:45 -0500
+Subject: [PATCH] implement foreign toplevel management
+
+---
+ Makefile                                      |   5 +-
+ dwl.c                                         |  93 +++++-
+ ...oreign-toplevel-management-unstable-v1.xml | 270 ++++++++++++++++++
+ 3 files changed, 366 insertions(+), 2 deletions(-)
+ create mode 100644 protocols/wlr-foreign-toplevel-management-unstable-v1.xml
+
+diff --git a/Makefile b/Makefile
+index a67fdd3..e0e1260 100644
+--- a/Makefile
++++ b/Makefile
+@@ -16,7 +16,7 @@ LDLIBS    = `$(PKG_CONFIG) --libs $(PKGS)` $(LIBS)
+ all: dwl
+ dwl: dwl.o util.o
+ 	$(CC) dwl.o util.o $(LDLIBS) $(LDFLAGS) $(DWLCFLAGS) -o $@
+-dwl.o: dwl.c config.mk config.h client.h cursor-shape-v1-protocol.h pointer-constraints-unstable-v1-protocol.h wlr-layer-shell-unstable-v1-protocol.h xdg-shell-protocol.h
++dwl.o: dwl.c config.mk config.h client.h cursor-shape-v1-protocol.h pointer-constraints-unstable-v1-protocol.h wlr-layer-shell-unstable-v1-protocol.h xdg-shell-protocol.h wlr-foreign-toplevel-management-unstable-v1-protocol.h
+ util.o: util.c util.h
+ 
+ # wayland-scanner is a tool which generates C headers and rigging for Wayland
+@@ -37,6 +37,9 @@ wlr-layer-shell-unstable-v1-protocol.h:
+ xdg-shell-protocol.h:
+ 	$(WAYLAND_SCANNER) server-header \
+ 		$(WAYLAND_PROTOCOLS)/stable/xdg-shell/xdg-shell.xml $@
++wlr-foreign-toplevel-management-unstable-v1-protocol.h:
++	$(WAYLAND_SCANNER) server-header \
++		protocols/wlr-foreign-toplevel-management-unstable-v1.xml $@
+ 
+ config.h:
+ 	cp config.def.h $@
+diff --git a/dwl.c b/dwl.c
+index bf763df..648616d 100644
+--- a/dwl.c
++++ b/dwl.c
+@@ -22,6 +22,7 @@
+ #include <wlr/types/wlr_data_device.h>
+ #include <wlr/types/wlr_drm.h>
+ #include <wlr/types/wlr_export_dmabuf_v1.h>
++#include <wlr/types/wlr_foreign_toplevel_management_v1.h>
+ #include <wlr/types/wlr_fractional_scale_v1.h>
+ #include <wlr/types/wlr_gamma_control_v1.h>
+ #include <wlr/types/wlr_idle_inhibit_v1.h>
+@@ -126,6 +127,11 @@ typedef struct {
+ 	struct wl_listener fullscreen;
+ 	struct wl_listener set_decoration_mode;
+ 	struct wl_listener destroy_decoration;
++	struct wlr_foreign_toplevel_handle_v1 *foreign_toplevel;
++	struct wl_listener factivate;
++	struct wl_listener fclose;
++	struct wl_listener ffullscreen;
++	struct wl_listener fdestroy;
+ 	struct wlr_box prev; /* layout-relative, includes border */
+ 	struct wlr_box bounds;
+ #ifdef XWAYLAND
+@@ -347,6 +353,11 @@ static Monitor *xytomon(double x, double y);
+ static void xytonode(double x, double y, struct wlr_surface **psurface,
+ 		Client **pc, LayerSurface **pl, double *nx, double *ny);
+ static void zoom(const Arg *arg);
++static void createforeigntoplevel(Client *c);
++static void factivatenotify(struct wl_listener *listener, void *data);
++static void fclosenotify(struct wl_listener *listener, void *data);
++static void fdestroynotify(struct wl_listener *listener, void *data);
++static void ffullscreennotify(struct wl_listener *listener, void *data);
+ 
+ /* variables */
+ static const char broken[] = "broken";
+@@ -392,6 +403,8 @@ static struct wlr_scene_rect *locked_bg;
+ static struct wlr_session_lock_v1 *cur_lock;
+ static struct wl_listener lock_listener = {.notify = locksession};
+ 
++static struct wlr_foreign_toplevel_manager_v1 *foreign_toplevel_mgr;
++
+ static struct wlr_seat *seat;
+ static KeyboardGroup kb_group = {0};
+ static KeyboardGroup vkb_group = {0};
+@@ -458,6 +471,11 @@ applyrules(Client *c)
+ 	if (!(title = client_get_title(c)))
+ 		title = broken;
+ 
++	if (c->foreign_toplevel) {
++		wlr_foreign_toplevel_handle_v1_set_app_id(c->foreign_toplevel, appid);
++		wlr_foreign_toplevel_handle_v1_set_title(c->foreign_toplevel, title);
++	}
++
+ 	for (r = rules; r < END(rules); r++) {
+ 		if ((!r->title || strstr(title, r->title))
+ 				&& (!r->id || strstr(appid, r->id))) {
+@@ -1288,6 +1306,8 @@ focusclient(Client *c, int lift)
+ 			client_set_border_color(old_c, bordercolor);
+ 
+ 			client_activate_surface(old, 0);
++			if (old_c->foreign_toplevel)
++				wlr_foreign_toplevel_handle_v1_set_activated(old_c->foreign_toplevel, 0);
+ 		}
+ 	}
+ 	printstatus();
+@@ -1306,6 +1326,8 @@ focusclient(Client *c, int lift)
+ 
+ 	/* Activate the new client */
+ 	client_activate_surface(client_surface(c), 1);
++	if (c->foreign_toplevel)
++		wlr_foreign_toplevel_handle_v1_set_activated(c->foreign_toplevel, 1);
+ }
+ 
+ void
+@@ -1599,6 +1621,8 @@ mapnotify(struct wl_listener *listener, void *data)
+ 		c->border[i]->node.data = c;
+ 	}
+ 
++	createforeigntoplevel(c);
++
+ 	/* Initialize client geometry with room for border */
+ 	client_set_tiled(c, WLR_EDGE_TOP | WLR_EDGE_BOTTOM | WLR_EDGE_LEFT | WLR_EDGE_RIGHT);
+ 	c->geom.width += 2 * c->bw;
+@@ -2232,12 +2256,17 @@ setmon(Client *c, Monitor *m, uint32_t newtags)
+ 	c->prev = c->geom;
+ 
+ 	/* Scene graph sends surface leave/enter events on move and resize */
+-	if (oldmon)
++	if (oldmon) {
++		if (c->foreign_toplevel)
++			wlr_foreign_toplevel_handle_v1_output_leave(c->foreign_toplevel, oldmon->wlr_output);
+ 		arrange(oldmon);
++	}
+ 	if (m) {
+ 		/* Make sure window actually overlaps with the monitor */
+ 		resize(c, c->geom, 0);
+ 		c->tags = newtags ? newtags : m->tagset[m->seltags]; /* assign tags of target monitor */
++		if (c->foreign_toplevel)
++			wlr_foreign_toplevel_handle_v1_output_enter(c->foreign_toplevel, m->wlr_output);
+ 		setfullscreen(c, c->isfullscreen); /* This will call arrange(c->mon) */
+ 		setfloating(c, c->isfloating);
+ 	}
+@@ -2351,6 +2380,9 @@ setup(void)
+ 	gamma_control_mgr = wlr_gamma_control_manager_v1_create(dpy);
+ 	LISTEN_STATIC(&gamma_control_mgr->events.set_gamma, setgamma);
+ 
++	/* Initializes foreign toplevel management */
++	foreign_toplevel_mgr = wlr_foreign_toplevel_manager_v1_create(dpy);
++
+ 	/* Creates an output layout, which a wlroots utility for working with an
+ 	 * arrangement of screens in a physical layout. */
+ 	output_layout = wlr_output_layout_create();
+@@ -2691,6 +2723,11 @@ unmapnotify(struct wl_listener *listener, void *data)
+ 		wl_list_remove(&c->flink);
+ 	}
+ 
++	if (c->foreign_toplevel) {
++		wlr_foreign_toplevel_handle_v1_destroy(c->foreign_toplevel);
++		c->foreign_toplevel = NULL;
++	}
++
+ 	wlr_scene_node_destroy(&c->scene->node);
+ 	printstatus();
+ 	motionnotify(0, NULL, 0, 0, 0, 0);
+@@ -2802,6 +2839,12 @@ void
+ updatetitle(struct wl_listener *listener, void *data)
+ {
+ 	Client *c = wl_container_of(listener, c, set_title);
++	if (c->foreign_toplevel) {
++		const char *title;
++		if (!(title = client_get_title(c)))
++			title = broken;
++		wlr_foreign_toplevel_handle_v1_set_title(c->foreign_toplevel, title);
++	}
+ 	if (c == focustop(c->mon))
+ 		printstatus();
+ }
+@@ -2929,6 +2972,54 @@ zoom(const Arg *arg)
+ 	arrange(selmon);
+ }
+ 
++void
++createforeigntoplevel(Client *c)
++{
++	c->foreign_toplevel = wlr_foreign_toplevel_handle_v1_create(foreign_toplevel_mgr);
++
++	LISTEN(&c->foreign_toplevel->events.request_activate, &c->factivate, factivatenotify);
++	LISTEN(&c->foreign_toplevel->events.request_close, &c->fclose, fclosenotify);
++	LISTEN(&c->foreign_toplevel->events.request_fullscreen, &c->ffullscreen, ffullscreennotify);
++	LISTEN(&c->foreign_toplevel->events.destroy, &c->fdestroy, fdestroynotify);
++}
++
++void
++factivatenotify(struct wl_listener *listener, void *data)
++{
++	Client *c = wl_container_of(listener, c, factivate);
++	if (c->mon == selmon) {
++		c->tags = c->mon->tagset[c->mon->seltags];
++	} else {
++		setmon(c, selmon, 0);
++	}
++	focusclient(c, 1);
++	arrange(c->mon);
++}
++
++void
++fclosenotify(struct wl_listener *listener, void *data)
++{
++	Client *c = wl_container_of(listener, c, fclose);
++	client_send_close(c);
++}
++
++void
++ffullscreennotify(struct wl_listener *listener, void *data) {
++	Client *c = wl_container_of(listener, c, ffullscreen);
++	struct wlr_foreign_toplevel_handle_v1_fullscreen_event *event = data;
++	setfullscreen(c, event->fullscreen);
++}
++
++void
++fdestroynotify(struct wl_listener *listener, void *data)
++{
++	Client *c = wl_container_of(listener, c, fdestroy);
++	wl_list_remove(&c->factivate.link);
++	wl_list_remove(&c->fclose.link);
++	wl_list_remove(&c->ffullscreen.link);
++	wl_list_remove(&c->fdestroy.link);
++}
++
+ #ifdef XWAYLAND
+ void
+ activatex11(struct wl_listener *listener, void *data)
+diff --git a/protocols/wlr-foreign-toplevel-management-unstable-v1.xml b/protocols/wlr-foreign-toplevel-management-unstable-v1.xml
+new file mode 100644
+index 0000000..44505bb
+--- /dev/null
++++ b/protocols/wlr-foreign-toplevel-management-unstable-v1.xml
+@@ -0,0 +1,270 @@
++<?xml version="1.0" encoding="UTF-8"?>
++<protocol name="wlr_foreign_toplevel_management_unstable_v1">
++  <copyright>
++    Copyright © 2018 Ilia Bozhinov
++
++    Permission to use, copy, modify, distribute, and sell this
++    software and its documentation for any purpose is hereby granted
++    without fee, provided that the above copyright notice appear in
++    all copies and that both that copyright notice and this permission
++    notice appear in supporting documentation, and that the name of
++    the copyright holders not be used in advertising or publicity
++    pertaining to distribution of the software without specific,
++    written prior permission.  The copyright holders make no
++    representations about the suitability of this software for any
++    purpose.  It is provided "as is" without express or implied
++    warranty.
++
++    THE COPYRIGHT HOLDERS DISCLAIM ALL WARRANTIES WITH REGARD TO THIS
++    SOFTWARE, INCLUDING ALL IMPLIED WARRANTIES OF MERCHANTABILITY AND
++    FITNESS, IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY
++    SPECIAL, INDIRECT OR CONSEQUENTIAL DAMAGES OR ANY DAMAGES
++    WHATSOEVER RESULTING FROM LOSS OF USE, DATA OR PROFITS, WHETHER IN
++    AN ACTION OF CONTRACT, NEGLIGENCE OR OTHER TORTIOUS ACTION,
++    ARISING OUT OF OR IN CONNECTION WITH THE USE OR PERFORMANCE OF
++    THIS SOFTWARE.
++  </copyright>
++
++  <interface name="zwlr_foreign_toplevel_manager_v1" version="3">
++    <description summary="list and control opened apps">
++      The purpose of this protocol is to enable the creation of taskbars
++      and docks by providing them with a list of opened applications and
++      letting them request certain actions on them, like maximizing, etc.
++
++      After a client binds the zwlr_foreign_toplevel_manager_v1, each opened
++      toplevel window will be sent via the toplevel event
++    </description>
++
++    <event name="toplevel">
++      <description summary="a toplevel has been created">
++        This event is emitted whenever a new toplevel window is created. It
++        is emitted for all toplevels, regardless of the app that has created
++        them.
++
++        All initial details of the toplevel(title, app_id, states, etc.) will
++        be sent immediately after this event via the corresponding events in
++        zwlr_foreign_toplevel_handle_v1.
++      </description>
++      <arg name="toplevel" type="new_id" interface="zwlr_foreign_toplevel_handle_v1"/>
++    </event>
++
++    <request name="stop">
++      <description summary="stop sending events">
++        Indicates the client no longer wishes to receive events for new toplevels.
++        However the compositor may emit further toplevel_created events, until
++        the finished event is emitted.
++
++        The client must not send any more requests after this one.
++      </description>
++    </request>
++
++    <event name="finished" type="destructor">
++      <description summary="the compositor has finished with the toplevel manager">
++        This event indicates that the compositor is done sending events to the
++        zwlr_foreign_toplevel_manager_v1. The server will destroy the object
++        immediately after sending this request, so it will become invalid and
++        the client should free any resources associated with it.
++      </description>
++    </event>
++  </interface>
++
++  <interface name="zwlr_foreign_toplevel_handle_v1" version="3">
++    <description summary="an opened toplevel">
++      A zwlr_foreign_toplevel_handle_v1 object represents an opened toplevel
++      window. Each app may have multiple opened toplevels.
++
++      Each toplevel has a list of outputs it is visible on, conveyed to the
++      client with the output_enter and output_leave events.
++    </description>
++
++    <event name="title">
++      <description summary="title change">
++        This event is emitted whenever the title of the toplevel changes.
++      </description>
++      <arg name="title" type="string"/>
++    </event>
++
++    <event name="app_id">
++      <description summary="app-id change">
++        This event is emitted whenever the app-id of the toplevel changes.
++      </description>
++      <arg name="app_id" type="string"/>
++    </event>
++
++    <event name="output_enter">
++      <description summary="toplevel entered an output">
++        This event is emitted whenever the toplevel becomes visible on
++        the given output. A toplevel may be visible on multiple outputs.
++      </description>
++      <arg name="output" type="object" interface="wl_output"/>
++    </event>
++
++    <event name="output_leave">
++      <description summary="toplevel left an output">
++        This event is emitted whenever the toplevel stops being visible on
++        the given output. It is guaranteed that an entered-output event
++        with the same output has been emitted before this event.
++      </description>
++      <arg name="output" type="object" interface="wl_output"/>
++    </event>
++
++    <request name="set_maximized">
++      <description summary="requests that the toplevel be maximized">
++        Requests that the toplevel be maximized. If the maximized state actually
++        changes, this will be indicated by the state event.
++      </description>
++    </request>
++
++    <request name="unset_maximized">
++      <description summary="requests that the toplevel be unmaximized">
++        Requests that the toplevel be unmaximized. If the maximized state actually
++        changes, this will be indicated by the state event.
++      </description>
++    </request>
++
++    <request name="set_minimized">
++      <description summary="requests that the toplevel be minimized">
++        Requests that the toplevel be minimized. If the minimized state actually
++        changes, this will be indicated by the state event.
++      </description>
++    </request>
++
++    <request name="unset_minimized">
++      <description summary="requests that the toplevel be unminimized">
++        Requests that the toplevel be unminimized. If the minimized state actually
++        changes, this will be indicated by the state event.
++      </description>
++    </request>
++
++    <request name="activate">
++      <description summary="activate the toplevel">
++        Request that this toplevel be activated on the given seat.
++        There is no guarantee the toplevel will be actually activated.
++      </description>
++      <arg name="seat" type="object" interface="wl_seat"/>
++    </request>
++
++    <enum name="state">
++      <description summary="types of states on the toplevel">
++        The different states that a toplevel can have. These have the same meaning
++        as the states with the same names defined in xdg-toplevel
++      </description>
++
++      <entry name="maximized"  value="0" summary="the toplevel is maximized"/>
++      <entry name="minimized"  value="1" summary="the toplevel is minimized"/>
++      <entry name="activated"  value="2" summary="the toplevel is active"/>
++      <entry name="fullscreen" value="3" summary="the toplevel is fullscreen" since="2"/>
++    </enum>
++
++    <event name="state">
++      <description summary="the toplevel state changed">
++        This event is emitted immediately after the zlw_foreign_toplevel_handle_v1
++        is created and each time the toplevel state changes, either because of a
++        compositor action or because of a request in this protocol.
++      </description>
++
++      <arg name="state" type="array"/>
++    </event>
++
++    <event name="done">
++      <description summary="all information about the toplevel has been sent">
++        This event is sent after all changes in the toplevel state have been
++        sent.
++
++        This allows changes to the zwlr_foreign_toplevel_handle_v1 properties
++        to be seen as atomic, even if they happen via multiple events.
++      </description>
++    </event>
++
++    <request name="close">
++      <description summary="request that the toplevel be closed">
++        Send a request to the toplevel to close itself. The compositor would
++        typically use a shell-specific method to carry out this request, for
++        example by sending the xdg_toplevel.close event. However, this gives
++        no guarantees the toplevel will actually be destroyed. If and when
++        this happens, the zwlr_foreign_toplevel_handle_v1.closed event will
++        be emitted.
++      </description>
++    </request>
++
++    <request name="set_rectangle">
++      <description summary="the rectangle which represents the toplevel">
++        The rectangle of the surface specified in this request corresponds to
++        the place where the app using this protocol represents the given toplevel.
++        It can be used by the compositor as a hint for some operations, e.g
++        minimizing. The client is however not required to set this, in which
++        case the compositor is free to decide some default value.
++
++        If the client specifies more than one rectangle, only the last one is
++        considered.
++
++        The dimensions are given in surface-local coordinates.
++        Setting width=height=0 removes the already-set rectangle.
++      </description>
++
++      <arg name="surface" type="object" interface="wl_surface"/>
++      <arg name="x" type="int"/>
++      <arg name="y" type="int"/>
++      <arg name="width" type="int"/>
++      <arg name="height" type="int"/>
++    </request>
++
++    <enum name="error">
++      <entry name="invalid_rectangle" value="0"
++        summary="the provided rectangle is invalid"/>
++    </enum>
++
++    <event name="closed">
++      <description summary="this toplevel has been destroyed">
++        This event means the toplevel has been destroyed. It is guaranteed there
++        won't be any more events for this zwlr_foreign_toplevel_handle_v1. The
++        toplevel itself becomes inert so any requests will be ignored except the
++        destroy request.
++      </description>
++    </event>
++
++    <request name="destroy" type="destructor">
++      <description summary="destroy the zwlr_foreign_toplevel_handle_v1 object">
++        Destroys the zwlr_foreign_toplevel_handle_v1 object.
++
++        This request should be called either when the client does not want to
++        use the toplevel anymore or after the closed event to finalize the
++        destruction of the object.
++      </description>
++    </request>
++
++    <!-- Version 2 additions -->
++
++    <request name="set_fullscreen" since="2">
++      <description summary="request that the toplevel be fullscreened">
++        Requests that the toplevel be fullscreened on the given output. If the
++        fullscreen state and/or the outputs the toplevel is visible on actually
++        change, this will be indicated by the state and output_enter/leave
++        events.
++
++        The output parameter is only a hint to the compositor. Also, if output
++        is NULL, the compositor should decide which output the toplevel will be
++        fullscreened on, if at all.
++      </description>
++      <arg name="output" type="object" interface="wl_output" allow-null="true"/>
++    </request>
++
++    <request name="unset_fullscreen" since="2">
++      <description summary="request that the toplevel be unfullscreened">
++        Requests that the toplevel be unfullscreened. If the fullscreen state
++        actually changes, this will be indicated by the state event.
++      </description>
++    </request>
++
++    <!-- Version 3 additions -->
++
++    <event name="parent" since="3">
++      <description summary="parent change">
++        This event is emitted whenever the parent of the toplevel changes.
++
++        No event is emitted when the parent handle is destroyed by the client.
++      </description>
++      <arg name="parent" type="object" interface="zwlr_foreign_toplevel_handle_v1" allow-null="true"/>
++    </event>
++  </interface>
++</protocol>
+-- 
+2.43.2
+

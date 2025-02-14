@@ -1,0 +1,122 @@
+From c003f450c197a0c960bbb355511f8dca7a35e3c3 Mon Sep 17 00:00:00 2001
+From: julmajustus <julmajustus@tutanota.com>
+Date: Sat, 4 Jan 2025 14:24:59 +0200
+Subject: [PATCH] add fullscreenadaptivesync
+
+---
+ config.def.h |  1 +
+ dwl.c        | 40 ++++++++++++++++++++++++++++++++++++++++
+ 2 files changed, 41 insertions(+)
+
+diff --git a/config.def.h b/config.def.h
+index 22d2171..886f1ab 100644
+--- a/config.def.h
++++ b/config.def.h
+@@ -142,6 +142,7 @@ static const Key keys[] = {
+ 	{ MODKEY,                    XKB_KEY_space,      setlayout,      {0} },
+ 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_space,      togglefloating, {0} },
+ 	{ MODKEY,                    XKB_KEY_e,         togglefullscreen, {0} },
++	{ MODKEY,                    XKB_KEY_F5,        togglefullscreenadaptivesync, {0} },
+ 	{ MODKEY,                    XKB_KEY_0,          view,           {.ui = ~0} },
+ 	{ MODKEY|WLR_MODIFIER_SHIFT, XKB_KEY_parenright, tag,            {.ui = ~0} },
+ 	{ MODKEY,                    XKB_KEY_comma,      focusmon,       {.i = WLR_DIRECTION_LEFT} },
+diff --git a/dwl.c b/dwl.c
+index a2711f6..7be05ef 100644
+--- a/dwl.c
++++ b/dwl.c
+@@ -322,6 +322,7 @@ static void requeststartdrag(struct wl_listener *listener, void *data);
+ static void requestmonstate(struct wl_listener *listener, void *data);
+ static void resize(Client *c, struct wlr_box geo, int interact);
+ static void run(char *startup_cmd);
++static void set_adaptive_sync(Monitor *m, int enabled);
+ static void setcursor(struct wl_listener *listener, void *data);
+ static void setcursorshape(struct wl_listener *listener, void *data);
+ static void setfloating(Client *c, int floating);
+@@ -340,6 +341,7 @@ static void tagmon(const Arg *arg);
+ static void tile(Monitor *m);
+ static void togglefloating(const Arg *arg);
+ static void togglefullscreen(const Arg *arg);
++static void togglefullscreenadaptivesync(const Arg *arg);
+ static void toggletag(const Arg *arg);
+ static void toggleview(const Arg *arg);
+ static void unlocksession(struct wl_listener *listener, void *data);
+@@ -413,6 +415,8 @@ static struct wlr_box sgeom;
+ static struct wl_list mons;
+ static Monitor *selmon;
+ 
++static int fullscreen_adaptive_sync_enabled = 1;
++
+ #ifdef XWAYLAND
+ static void activatex11(struct wl_listener *listener, void *data);
+ static void associatex11(struct wl_listener *listener, void *data);
+@@ -2269,6 +2273,31 @@ run(char *startup_cmd)
+ 	wl_display_run(dpy);
+ }
+ 
++void
++set_adaptive_sync(Monitor *m, int enable)
++{
++	struct wlr_output_state state;
++	struct wlr_output_configuration_v1 *config;
++	struct wlr_output_configuration_head_v1 *config_head;
++
++	if (!m || !m->wlr_output || !m->wlr_output->enabled
++			|| !fullscreen_adaptive_sync_enabled)
++		return;
++
++	config = wlr_output_configuration_v1_create();
++	config_head = wlr_output_configuration_head_v1_create(config, m->wlr_output);
++
++	/* Set and commit the adaptive sync state change */
++	wlr_output_state_init(&state);
++	wlr_output_state_set_adaptive_sync_enabled(&state, enable);
++	wlr_output_commit_state(m->wlr_output, &state);
++	wlr_output_state_finish(&state);
++
++	/* Broadcast the adaptive sync state change to output_mgr */
++	config_head->state.adaptive_sync_enabled = enable;
++	wlr_output_manager_v1_set_configuration(output_mgr, config);
++}
++
+ void
+ setcursor(struct wl_listener *listener, void *data)
+ {
+@@ -2332,10 +2361,12 @@ setfullscreen(Client *c, int fullscreen)
+ 	if (fullscreen) {
+ 		c->prev = c->geom;
+ 		resize(c, c->mon->m, 0);
++		set_adaptive_sync(c->mon, 1);
+ 	} else {
+ 		/* restore previous size instead of arrange for floating windows since
+ 		 * client positions are set by the user and cannot be recalculated */
+ 		resize(c, c->prev, 0);
++		set_adaptive_sync(c->mon, 0);
+ 	}
+ 	arrange(c->mon);
+ 	printstatus();
+@@ -2739,6 +2770,12 @@ togglefullscreen(const Arg *arg)
+ 		setfullscreen(sel, !sel->isfullscreen);
+ }
+ 
++void
++togglefullscreenadaptivesync(const Arg *arg)
++{
++	fullscreen_adaptive_sync_enabled = !fullscreen_adaptive_sync_enabled;
++}
++
+ void
+ toggletag(const Arg *arg)
+ {
+@@ -2809,6 +2846,9 @@ unmapnotify(struct wl_listener *listener, void *data)
+ 		setmon(c, NULL, 0);
+ 		wl_list_remove(&c->flink);
+ 	}
++	/* Toggle adaptive sync off when fullscreen client is unmapped */
++	if (c->isfullscreen)
++		set_adaptive_sync(selmon, 0);
+ 
+ 	wlr_scene_node_destroy(&c->scene->node);
+ 	printstatus();
+-- 
+2.45.2
+
