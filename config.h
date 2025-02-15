@@ -169,7 +169,7 @@ static const char *termfoot[]          = { "foot", NULL };
 
 static const char *termfootclient[]           = { "footclient", NULL };
 static const char *termst[]             = { "st", NULL };
-static const char *menucmd[]            = { "/home/juftuf/.config/rofi/launchers/misc/launcher.sh", NULL };
+static const char *menucmd[]            = { "/home/juftuf/.config/dwl/scripts/launcher", NULL };
 static const char *files[]              = { "thunar", NULL };
 static const char *editor[]             = { "geany", NULL };
 static const char *steam[]              = { "/home/juftuf/.local/bin/launchsteam.sh", NULL };

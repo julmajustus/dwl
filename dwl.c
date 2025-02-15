@@ -3992,8 +3992,8 @@ rotatetags(const Arg *arg)
 	newarg.i = nextseltags;
 
 	if (shift) {
-		view(&newarg);
 		tag(&newarg);
+		view(&newarg);
 	}
 	else
 		view(&newarg);
